@@ -1151,6 +1151,7 @@ bool pc_authok(struct map_session_data *sd, uint32 login_id2, time_t expiration_
 	memset(&sd->inventory, 0, sizeof(struct s_storage));
 	memset(&sd->cart, 0, sizeof(struct s_storage));
 	memset(&sd->storage, 0, sizeof(struct s_storage));
+	memset(&sd->premiumStorage, 0, sizeof(struct s_storage));
 	memset(&sd->equip_index, -1, sizeof(sd->equip_index));
 
 	if( sd->status.option&OPTION_INVISIBLE && !pc_can_use_command( sd, "hide", COMMAND_ATCOMMAND ) ){
@@ -1427,7 +1428,6 @@ void pc_reg_received(struct map_session_data *sd)
 	chrif_scdata_request(sd->status.account_id, sd->status.char_id);
 	chrif_skillcooldown_request(sd->status.account_id, sd->status.char_id);
 	chrif_bsdata_request(sd->status.char_id);
-	sd->storage_size = MIN_STORAGE; //default to min
 #ifdef VIP_ENABLE
 	sd->vip.time = 0;
 	sd->vip.enabled = 0;
@@ -1456,9 +1456,9 @@ void pc_reg_received(struct map_session_data *sd)
 		clif_changeoption( &sd->bl );
 	}
 
-	intif_storage_request(sd,TABLE_STORAGE); // Request storage data
-	intif_storage_request(sd,TABLE_CART); // Request cart data
-	intif_storage_request(sd,TABLE_INVENTORY); // Request inventory data
+	intif_storage_request(sd,TABLE_STORAGE, 0, STOR_MODE_ALL); // Request storage data
+	intif_storage_request(sd,TABLE_CART, 0, STOR_MODE_ALL); // Request cart data
+	intif_storage_request(sd,TABLE_INVENTORY, 0, STOR_MODE_ALL); // Request inventory data
 }
 
 static int pc_calc_skillpoint(struct map_session_data* sd)
@@ -9973,7 +9973,7 @@ void pc_check_available_item(struct map_session_data *sd, uint8 type)
 	}
 
 	if (battle_config.item_check&ITMCHK_STORAGE || type&ITMCHK_STORAGE) { // Check for invalid(ated) items in storage.
-		for(i = 0; i < sd->storage_size; i++) {
+		for(i = 0; i < sd->storage.max_amount; i++) {
 			nameid = sd->storage.u.items_storage[i].nameid;
 
 			if (!nameid)
@@ -9982,7 +9982,7 @@ void pc_check_available_item(struct map_session_data *sd, uint8 type)
 				sprintf(output, msg_txt(sd, 711), nameid); // Item %hu has been removed from your storage.
 				clif_displaymessage(sd->fd, output);
 				ShowWarning("Removed invalid/disabled item (ID: %hu, amount: %d) from storage (char_id: %d).\n", nameid, sd->storage.u.items_storage[i].amount, sd->status.char_id);
-				storage_delitem(sd, i, sd->storage.u.items_storage[i].amount);
+				storage_delitem(sd, &sd->storage, i, sd->storage.u.items_storage[i].amount);
 				continue;
 			}
 			if (!sd->storage.u.items_storage[i].unique_id && !itemdb_isstackable(nameid))
